@@ -403,7 +403,8 @@ int main (int argc, char *argv[]) {
   const struct option longopts[] = {
     { "domid", 1, NULL, 'd' },
     { "qemu-clipboard-fd", 1, NULL, 's' },
-    { "help", 0, NULL, 'h' }
+    { "help", 0, NULL, 'h' },
+    { NULL, 0, 0, 0 }
   };
 
   unsigned int domId = 0;
