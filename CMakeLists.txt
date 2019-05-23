@@ -52,7 +52,7 @@ set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -DDEBUG")
 find_package(XcpNgGeneric REQUIRED)
 
 set(LIBS 
-  -lxenstore
+  -lxenstore # TODO: create a FindXenStore.cmake
   XcpNg::Generic
 )
 
