@@ -31,6 +31,8 @@
 #include <unistd.h>
 #include <xenstore.h>
 
+#include <xcp-ng/generic.h>
+
 #define MIN(A, B) (((A) < (B)) ? (A) : (B))
 
 // =============================================================================
@@ -90,17 +92,10 @@ static int bufferAppend (Buffer *buffer, const void *data, size_t size) {
 // -----------------------------------------------------------------------------
 
 static int safeWrite (int fd, const void *buf, size_t count) {
-  for (size_t offset = 0; offset < count; ) {
-    ssize_t ret = write(fd, (char *)buf + offset, count - offset);
-    if (ret != -1) {
-      offset += (size_t)ret;
-      continue;
-    }
-
-    if (errno != EINTR) {
-      syslog(LOG_ERR, "unable to write properly in %d because: %s", fd, strerror(errno));
-      return -1;
-    }
+  size_t offset;
+  if (xcp_fd_write_all(fd, buf, count, &offset) < 0) {
+    syslog(LOG_ERR, "unable to write properly in %d because: %s", fd, strerror(errno));
+    return -1;
   }
 
   return 0;
@@ -278,21 +273,15 @@ static int guestClipboardHandler (struct xs_handle *xs, int qemuFd, unsigned int
     return -1;
 
   void *pos = (char *)buffer.data + buffer.size;
-  for (;;) {
-    ssize_t ret = read(qemuFd, pos, 4096);
-    if (ret == -1) {
-      if (errno != EINTR) {
-        syslog(LOG_ERR, "read failed because: %s", strerror(errno));
-        return -1;
-      }
-    } else if (ret == 0) {
-      syslog(LOG_ERR, "nothing to read in guest clipboard...");
-      return -1;
-    } else {
-      buffer.size += (size_t)ret;
-      break;
-    }
+  size_t offset;
+  if (xcp_fd_read_all(qemuFd, pos, 4096, 0, &offset) < 0) {
+    syslog(LOG_ERR, "read failed because: %s", strerror(errno));
+    return -1;
+  } else if (offset == 0) {
+    syslog(LOG_ERR, "nothing to read in guest clipboard...");
+    return -1;
   }
+  buffer.size += offset;
 
   // The first 4-byte contains the buffer's size.
   // We can't start writing the guest clipboard without the full buffer data.
@@ -329,16 +318,9 @@ static int handleEvents (struct xs_handle *xs, int qemuFd, unsigned int domId) {
   };
 
   for (;;) {
-    for (;;) {
-      syslog(LOG_DEBUG, "polling events...");
-      int ret = poll(fds, 2, -1);
-      if (ret == -1) {
-        if (errno != EINTR) {
-          syslog(LOG_ERR, "poll failed because: %s", strerror(errno));
-          return -1;
-        }
-      } else if (ret > 0)
-        break;
+    if (xcp_poll(fds, 2, -1) <= 0) {
+      syslog(LOG_ERR, "poll failed because: %s", strerror(errno));
+      return -1;
     }
 
     for (int i = 0; i < 2; ++i) {
