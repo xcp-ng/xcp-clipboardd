@@ -272,7 +272,8 @@ static int guestClipboardHandler (struct xs_handle *xs, int qemuFd, unsigned int
   if (ret < 0) {
     syslog(LOG_ERR, "read failed because: %s", strerror(errno));
     return -1;
-  } else if (ret == 0) {
+  }
+  if (ret == 0) {
     syslog(LOG_ERR, "nothing to read in guest clipboard...");
     return -1;
   }
