@@ -29,8 +29,6 @@
 
 #include <xcp-ng/generic.h>
 
-#define MIN(A, B) (((A) < (B)) ? (A) : (B))
-
 // =============================================================================
 
 #define CLIPBOARD_SET_NODE "set_clipboard"
@@ -132,7 +130,7 @@ static int xenStoreSetClipboardEvent (struct xs_handle *xs, unsigned int domId) 
     if (!ClipboardState.data)
       goto end; // Nothing to write for now.
 
-    unsigned int len = (unsigned int)MIN(ClipboardState.size - ClipboardState.offset, 1024);
+    unsigned int len = (unsigned int)XCP_MIN(ClipboardState.size - ClipboardState.offset, 1024);
     syslog(LOG_DEBUG, "writing chunk to guest clipboard (count=%u)", len);
     if (!xs_write(xs, XBT_NULL, fullPath, (char *)ClipboardState.data + ClipboardState.offset, len)) {
       free(fullPath);
