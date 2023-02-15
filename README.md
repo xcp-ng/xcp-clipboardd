@@ -1,7 +1,8 @@
 # xcp-clipboardd
 
-Share clipboard between guest Windows and host with VNC.
-More explicit: xcp-clipboardd is a binary file that allows to copy & paste between a VNC client, called **host** in the document, and a virtualized Windows, called **guest**.
+Share clipboard between Windows VM (called **guest**) and VNC client (called **host**) running elsewhere and which is connected to QEMU. QEMU in turn acts as the VNC server for this Windows VM.
+In other words: xcp-clipboardd is a resident program which is launched at guest start in dom0, and which makes the necessary protocol conversion to make the clipboard sharing possible.
+
 
 ## Build
 
@@ -14,28 +15,32 @@ cmake ..
 make
 ```
 
+## Other Requirements
+
+The Windows guest should have `win-xenguestagent` installed.
+
 # How does it work?
 
-The working of the binary is based on the listening of `POLLIN` on 2 sockets: one furnished by QEMU, called `qEmuFd` in this document, and another by XenStore, called `xsFd`.
+In Xen architecture, QEMU, amongst other tasks, can act as VNC server and thus allows a VNC client to connect to the guest.
+Even if clipboard sharing is part of the VNC protocol, in Xen world it is not used as is for some technical debt reasons. Only the communication with the VNC client follows this protocol for this need.
+The communication with Windows guests is done through the XenStore protocol. That is, xcp-clipboardd uses a socket provided by QEMU to communicate with the host/client and uses the XenStore (special nodes and events) to communicate with the guest.
+On the other hand, on the guest, `win-xenguestagent` is responsible for reading/writing to the appropriate XenStore nodes and to use Windows API to communicate with Windows' clipboard.
 
-## Copying code from guest to host
+## Copying clipboard data from host/client to guest
 
-* The **guest** clipboard changes.
-    * The `xsFd` socket is notified with `POLLIN`.
-    * We then check the token given by XenStore, it should be `report_clipboard` in this scenario.
-    * If this is the case, we read the XenStore and writes the size of the data and the data into `qEmuFd`.
+* The **host/client** clipboard changes.
+    * VNC protocol (when configured to do so) communicates the data to QEMU VNC server.
+    * QEMU writes this data to a socket which xcp-clipboardd listens to.
+    * xcp-clipboardd, after retrieving the data from QEMU, does some small conversion (for protocol needs) and writes it to a dedicated XenStore node.
+    * win-xenguestagent on its hand is notified that the data is available on the XenStore node, retrieves it, and uses Windows API to communicate with Windows' clipboard. 
 
-## Copying code from host to guest
+## Copying clipboard data from guest to host/client
 
-* The basic scenario is when the clipboard of the **host** changes.
-    * The `qEmuFd` is notified with `POLLIN`.
-    * We read what's in the `qEmuFd`: the size of data on 4 bytes and the data.
-    * Then we write the data, chunk by chunk, into the Xenstore.
-* A second scenario is when the data from the previous one have not been completely written.
-    * The `xsFd` socket is notified with `POLLIN`.
-    * We then check the token given by XenStore, it should be `set_clipboard` in this scenario.
-    * We read what's in the `qEmuFd`: the size of the data on 4 bytes and the data.
-    * Then we write the data, chunk by chunk, into the Xenstore.
+* The **guest** clipboard changes. 
+    * win-xenguestagent is notified and retrieves the clipboard data through Windows API. 
+    * win-xenguestagent writes the data to a dedicated XenStore node and the data is retrieved by xcp-clipboardd.
+    * xcp-clipboardd does some small protocol conversion and writes to QEMU socket.
+    * QEMU VNC server sends the data to VNC client.
 
 # Would you like to know more?
 
