@@ -48,7 +48,13 @@ if (CMAKE_C_COMPILER_ID MATCHES "GNU")
 endif ()
 
 set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -DDEBUG")
-set(LIBS -lxenstore)
+
+find_package(XcpNgGeneric 1.1.0 REQUIRED)
+
+set(LIBS
+  -lxenstore # TODO: create a FindXenStore.cmake
+  XcpNg::Generic
+)
 
 # ------------------------------------------------------------------------------
 # Sources.
